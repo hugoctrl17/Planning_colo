@@ -19,4 +19,4 @@ taches_input = st.text_area(
     "Tâches à planifier (une par ligne) :",
     value="Vaisselle matin\nVaisselle midi\nVaisselle soir\nPrépa repas\nPrépa goûter\nNettoyage matin\nNettoyage soir\nCourses"
 )
-taches = [t.strip
+taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
