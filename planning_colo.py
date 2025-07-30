@@ -1,34 +1,28 @@
 import streamlit as st
 import random
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+import pandas as pd
 
-st.set_page_config(page_title="Planning Colo", page_icon="📅", layout="centered")
+st.set_page_config(page_title="Planning Colo", layout="centered")
+
 st.title("📅 Générateur de Planning des Tâches en Colo")
 
-# --- Saisie des enfants ---
-st.subheader("👧👦 Enfants")
-noms = st.text_area("Entrez un prénom par ligne :").strip().split("\n")
-enfants = [nom.strip() for nom in noms if nom.strip()]
-nb_enfants_total = len(enfants)
+# Saisie des prénoms
+st.markdown("## 👧👦 Entrez les prénoms des enfants")
+prenoms_input = st.text_area("Entrez un prénom par ligne :", height=200)
+prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
+nb_enfants_total = len(prenoms)
 
-if nb_enfants_total == 0:
-    st.warning("⚠️ Ajoute au moins un prénom pour continuer.")
-    st.stop()
+# Configuration des tâches
+st.markdown("## 🧹 Configuration des tâches")
+jours = st.number_input("Nombre de jours de colo", min_value=1, max_value=30, value=7)
 
-# --- Paramètres de durée ---
-st.subheader("🗓️ Durée")
-nb_jours = st.slider("Nombre de jours dans le planning :", min_value=1, max_value=30, value=7)
+taches = st.text_area("Entrez les tâches (une par ligne) :", 
+                      value="Vaisselle midi\nVaisselle soir\nPrépa repas\nPrépa goûter\nNettoyage matin\nCourses")
+liste_taches = [t.strip() for t in taches.split("\n") if t.strip()]
 
-# --- Configuration des tâches dynamiques ---
-st.subheader("🛠️ Tâches")
-nb_taches = st.number_input("Combien de types de tâches veux-tu ?", min_value=1, max_value=20, value=5, step=1)
-
-taches = {}
-for i in range(nb_taches):
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        nom_tache = st.text_input(f"Tâche #{i+1}", value=f"Tâche {i+1}", key=f"tache_{i}")
-    with col2:
-        nb = st.number_input(f"Nb pers.", min_value=1, max_value=nb_enfants_total, value=2, step=1,
+nb_par_tache = {}
+for i, t in enumerate(liste_taches):
+    nb = st.number_input(
+        f"Nb pers. pour « {t} »", 
+        min_value=1, 
+        max_value=nb_enfants_total if nb_enfants_total > 0 else 1
