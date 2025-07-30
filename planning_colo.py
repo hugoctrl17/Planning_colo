@@ -19,10 +19,4 @@ taches_input = st.text_area(
     "Tâches à planifier (une par ligne) :",
     value="Vaisselle matin\nVaisselle midi\nVaisselle soir\nPrépa repas\nPrépa goûter\nNettoyage matin\nNettoyage soir\nCourses"
 )
-taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
-
-# --- Nombre de personnes par tâche ---
-nb_personnes_par_tache = {}
-st.subheader("👥 Nombre de personnes par tâche")
-
-max_people = max
+taches = [t.strip
