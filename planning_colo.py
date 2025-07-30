@@ -21,8 +21,15 @@ st.sidebar.header("Configuration des tâches")
 taches = {}
 for tache, default_nb in taches_default.items():
     new_name = st.sidebar.text_input(f"Nom tâche (actuel: {tache})", value=tache, key=f"name_{tache}")
-    nb_enfants = st.sidebar.number_input(f"Nombre d'enfants pour '{new_name}'", min_value=1, max_value=len(enfants) if enfants else 1, value=default_nb, step=1, key=f"nb_{tache}")
-    taches[new_name] = nb_enfants
+    max_enfants = max(1, len(enfants))  # on évite que max_value soit à 0
+nb_enfants = st.sidebar.number_input(
+    f"Nombre d'enfants pour '{new_name}'",
+    min_value=1,
+    max_value=max_enfants,
+    value=min(default_nb, max_enfants),
+    step=1,
+    key=f"nb_{tache}"
+)
 
 if st.sidebar.button("Générer le planning"):
     if len(enfants) == 0:
