@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 
+# --- Configuration de la page ---
 st.set_page_config(page_title="Planning Colo", layout="centered")
 st.title("📅 Générateur de Planning des Tâches en Colo")
 
@@ -15,5 +16,57 @@ nb_enfants = len(prenoms)
 st.header("📅 Paramètres du planning")
 nb_jours = st.number_input("Nombre de jours de la colo :", min_value=1, max_value=30, value=5)
 
-taches_input = st.text_area("Tâches à planifier (une par ligne) :", 
-                            value="Vaisselle matin\nVaisselle
+# Valeur par défaut corrigée avec triple quotes
+taches_input = st.text_area(
+    "Tâches à planifier (une par ligne) :",
+    value="""Vaisselle matin
+Vaisselle midi
+Vaisselle soir
+Prépa repas
+Prépa goûter
+Nettoyage matin
+Nettoyage soir
+Courses"""
+)
+taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
+
+# --- Nombre de personnes par tâche ---
+nb_personnes_par_tache = {}
+st.subheader("👥 Nombre de personnes par tâche")
+for tache in taches:
+    nb = st.number_input(f"{tache}", min_value=1, max_value=max(1, nb_enfants), value=2, key=tache)
+    nb_personnes_par_tache[tache] = nb
+
+# --- Bouton de génération ---
+generate = st.button("🎲 Générer le planning")
+
+if generate:
+    if nb_enfants == 0 or len(taches) == 0:
+        st.error("Veuillez entrer au moins un prénom et une tâche.")
+    else:
+        planning = []
+        for jour in range(1, nb_jours + 1):
+            enfants_dispo = prenoms.copy()
+            random.shuffle(enfants_dispo)
+            ligne_jour = []
+            for tache in taches:
+                n = nb_personnes_par_tache[tache]
+                if len(enfants_dispo) < n:
+                    enfants_dispo = prenoms.copy()
+                    random.shuffle(enfants_dispo)
+                assignés = enfants_dispo[:n]
+                enfants_dispo = enfants_dispo[n:]
+                ligne_jour.append({
+                    "Jour": f"Jour {jour}",
+                    "Tâche": tache,
+                    "Enfants": ", ".join(assignés)
+                })
+            planning.extend(ligne_jour)
+
+        df = pd.DataFrame(planning)
+        st.success("✅ Planning généré avec succès !")
+        st.dataframe(df, use_container_width=True)
+
+        # --- Export CSV ---
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Télécharger en CSV", data=csv, file_name="planning_colo.csv", mime="text/csv")
