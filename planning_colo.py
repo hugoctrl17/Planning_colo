@@ -25,4 +25,4 @@ for i, t in enumerate(liste_taches):
     nb = st.number_input(
         f"Nb pers. pour « {t} »", 
         min_value=1, 
-        max_value=nb_enfants_total if nb_enfants_total > 0 else 1
+        max_value=nb_enfants_total if nb_enfants_total > 0 else 1)
