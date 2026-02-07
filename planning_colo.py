@@ -2,72 +2,91 @@ import streamlit as st
 import pandas as pd
 import random
 
-st.set_page_config(page_title="Planning Colo", layout="centered")
-st.title("📅 Générateur de Planning des Tâches en Colo")
+st.set_page_config(page_title="Planning Colo Pro", layout="centered")
+st.title("📅 Générateur de Planning de Colo – Version Pro")
 
-# --- Saisie des prénoms ---
+# =====================
+# 👧👦 ENFANTS
+# =====================
 st.header("👧👦 Enfants")
-prenoms_input = st.text_area("Entrez un prénom par ligne :", height=200)
+prenoms_input = st.text_area("Un prénom par ligne :", height=200)
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 nb_enfants = len(prenoms)
 
-# --- Paramètres du planning ---
-st.header("📅 Paramètres du planning")
-nb_jours = st.number_input("Nombre de jours de la colo :", min_value=1, max_value=30, value=5)
+# =====================
+# 📅 PARAMÈTRES
+# =====================
+st.header("📅 Paramètres")
+nb_jours = st.number_input("Nombre de jours", 1, 30, 5)
 
-# --- Saisie des tâches ---
+# =====================
+# 🧹 TÂCHES
+# =====================
+st.header("🧹 Tâches")
 taches_input = st.text_area(
-    "Tâches à planifier (une par ligne) :",
-    value="Vaisselle matin\nVaisselle midi\nVaisselle soir\nPrépa repas\nPrépa goûter\nNettoyage matin\nNettoyage soir\nCourses"
+    "Une tâche par ligne",
+    value="Vaisselle matin\nVaisselle midi\nVaisselle soir\nNettoyage matin\nNettoyage soir\nCourses"
 )
-# ✅ Correction de la ligne qui plantait
 taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# --- Nombre de personnes par tâche ---
-st.subheader("👥 Nombre de personnes par tâche")
-nb_personnes_par_tache = {}
-max_people = max(1, nb_enfants)
-for tache in taches:
-    default_value = 1 if nb_enfants == 0 else min(2, max_people)
-    nb = st.number_input(
-        f"{tache}",
-        min_value=1,
-        max_value=max_people,
-        value=default_value,
-        key=f"nb_{tache}"
+# =====================
+# ⚙️ PARAMÈTRES DES TÂCHES
+# =====================
+st.subheader("⚙️ Paramètres par tâche")
+
+nb_personnes = {}
+penibilite = {}
+
+for t in taches:
+    col1, col2 = st.columns(2)
+    with col1:
+        nb_personnes[t] = st.number_input(
+            f"{t} – personnes",
+            1, max(1, nb_enfants), 1, key=f"p_{t}"
+        )
+    with col2:
+        penibilite[t] = st.selectbox(
+            f"{t} – pénibilité",
+            [1, 2, 3],
+            index=1,
+            key=f"pen_{t}"
+        )
+
+# =====================
+# 🚫 EXCLUSIONS
+# =====================
+st.header("🚫 Exclusions")
+exclusions = {}
+for e in prenoms:
+    exclusions[e] = st.multiselect(
+        f"{e} ne peut PAS faire :",
+        taches,
+        key=f"excl_{e}"
     )
-    nb_personnes_par_tache[tache] = nb
 
-# --- Bouton de génération (toujours visible) ---
-generate = st.button("🎲 Générer le planning")
+# =====================
+# 🧑‍🤝‍🧑 BINÔMES
+# =====================
+st.header("🧑‍🤝‍🧑 Binômes fixes (optionnel)")
+binomes_input = st.text_area(
+    "Un binôme par ligne (ex : Paul,Marie)",
+    height=100
+)
+binomes = []
+for line in binomes_input.split("\n"):
+    parts = [p.strip() for p in line.split(",")]
+    if len(parts) == 2 and all(p in prenoms for p in parts):
+        binomes.append(tuple(parts))
 
-if generate:
-    if nb_enfants == 0:
-        st.error("❌ Ajoute au moins un prénom avant de générer.")
-    elif len(taches) == 0:
-        st.error("❌ Ajoute au moins une tâche.")
-    else:
-        planning = []
-        for jour in range(1, nb_jours + 1):
-            enfants_dispo = prenoms.copy()
-            random.shuffle(enfants_dispo)
-            for tache in taches:
-                n = nb_personnes_par_tache[tache]
-                n = min(n, len(prenoms))  # ✅ Empêche d'avoir plus de places que d'enfants
-                if len(enfants_dispo) < n:
-                    enfants_dispo = prenoms.copy()
-                    random.shuffle(enfants_dispo)
-                assignes = enfants_dispo[:n]
-                enfants_dispo = enfants_dispo[n:]
-                planning.append({
-                    "Jour": f"Jour {jour}",
-                    "Tâche": tache,
-                    "Enfants": ", ".join(assignes)
-                })
+# =====================
+# 🎲 GÉNÉRATION
+# =====================
+if st.button("🎲 Générer le planning"):
+    if not prenoms or not taches:
+        st.error("❌ Prénoms et tâches obligatoires")
+        st.stop()
 
-        df = pd.DataFrame(planning)
-        st.success("✅ Planning généré avec succès !")
-        st.dataframe(df, use_container_width=True)
+    planning = []
+    alertes = []
 
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("⬇️ Télécharger en CSV", data=csv, file_name="planning_colo.csv", mime="text/csv")
+    taches_par_enfant
