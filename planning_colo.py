@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 import random
 
-st.set_page_config(page_title="Planning Colo Pro", layout="centered")
-st.title("📅 Générateur de Planning de Colo – Version Pro")
+st.set_page_config(page_title="PLANNING TACHES ", layout="centered")
+st.title("GENERATEUR DE PLANNING DES TACHES")
 
 # =====================
 # 👧👦 ENFANTS
 # =====================
-st.header("👧👦 Enfants")
+st.header("LISTE DES JEUNES")
 prenoms_input = st.text_area("Un prénom par ligne :", height=200)
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 nb_enfants = len(prenoms)
@@ -16,13 +16,13 @@ nb_enfants = len(prenoms)
 # =====================
 # 📅 PARAMÈTRES
 # =====================
-st.header("📅 Paramètres")
+st.header("NOMBRE DE JOURS DE LA COLO")
 nb_jours = st.number_input("Nombre de jours", 1, 30, 5)
 
 # =====================
 # 🧹 TÂCHES
 # =====================
-st.header("🧹 Tâches")
+st.header("LISTE DES TACHES")
 taches_input = st.text_area(
     "Une tâche par ligne",
     value="Vaisselle matin\nVaisselle midi\nVaisselle soir\nNettoyage matin\nNettoyage soir\nCourses"
@@ -32,7 +32,7 @@ taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
 # =====================
 # ⚙️ PARAMÈTRES DES TÂCHES
 # =====================
-st.subheader("⚙️ Paramètres par tâche")
+st.subheader("JEUNES PAR TACHE")
 
 nb_personnes = {}
 penibilite = {}
@@ -44,18 +44,12 @@ for t in taches:
             f"{t} – personnes",
             1, max(1, nb_enfants), 1, key=f"p_{t}"
         )
-    with col2:
-        penibilite[t] = st.selectbox(
-            f"{t} – pénibilité",
-            [1, 2, 3],
-            index=1,
-            key=f"pen_{t}"
-        )
+   
 
 # =====================
 # 🚫 EXCLUSIONS
 # =====================
-st.header("🚫 Exclusions")
+st.header("EXCLUSIONS")
 exclusions = {}
 for e in prenoms:
     exclusions[e] = st.multiselect(
@@ -67,7 +61,7 @@ for e in prenoms:
 # =====================
 # 🧑‍🤝‍🧑 BINÔMES
 # =====================
-st.header("🧑‍🤝‍🧑 Binômes fixes (optionnel)")
+st.header("BINÔMES (optionnel)")
 binomes_input = st.text_area(
     "Un binôme par ligne (ex : Paul,Marie)",
     height=100
@@ -79,9 +73,9 @@ for line in binomes_input.split("\n"):
         binomes.append(tuple(parts))
 
 # =====================
-# 🎲 GÉNÉRATION
+# GÉNÉRATION
 # =====================
-if st.button("🎲 Générer le planning"):
+if st.button("GENERER LE PLANNING"):
     if not prenoms or not taches:
         st.error("❌ Prénoms et tâches obligatoires")
         st.stop()
