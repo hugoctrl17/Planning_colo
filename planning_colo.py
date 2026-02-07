@@ -46,17 +46,6 @@ for t in taches:
         )
    
 
-# =====================
-# 🚫 EXCLUSIONS
-# =====================
-st.header("EXCLUSIONS")
-exclusions = {}
-for e in prenoms:
-    exclusions[e] = st.multiselect(
-        f"{e} ne peut PAS faire :",
-        taches,
-        key=f"excl_{e}"
-    )
 
 # =====================
 # 🧑‍🤝‍🧑 BINÔMES
