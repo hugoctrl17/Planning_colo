@@ -33,7 +33,7 @@ nb_jours = st.number_input(
     "Nombre de jours",
     min_value=1,
     max_value=30,
-    value=5
+    value=8
 )
 
 liste_jours = list(range(1, nb_jours + 1))
