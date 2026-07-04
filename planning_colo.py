@@ -45,13 +45,23 @@ if uploaded_image:
         use_container_width=True
     )
 
-    if st.button("Extraire les jeunes"):
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-
-        image_base64 = base64.b64encode(
-            buffer.getvalue()
-        ).decode()
+    if uploaded_image:
+        image = Image.open(uploaded_image)
+    
+        st.image(
+            image,
+            caption="Document importé",
+            use_container_width=True
+        )
+    
+        st.info(
+            "OCR en cours de développement. "
+            "Utilisez encore la saisie manuelle."
+        )
+    
+            image_base64 = base64.b64encode(
+                buffer.getvalue()
+            ).decode()
 
 # =====================
 # LISTE DES JEUNES
@@ -142,20 +152,6 @@ for tache in taches:
 
     st.divider()
 def peut_faire_tache(enfant, tache, historique_taches):
-   ###
-   ###  Empêche de faire la même tâche 3 fois de suite.
-   ###  
-
-    historique = historique_taches[enfant]
-
-    if len(historique) < 2:
-        return True
-
-    return not (
-        historique[-1] == tache
-        and historique[-2] == tache
-    )
-def peut_faire_tache(enfant, tache, historique_taches):
     """
     Empêche de faire la même tâche 3 fois de suite.
     """
@@ -245,7 +241,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             besoin = min(nb_personnes[tache], nb_enfants)
 
             # Enfants disponibles + n'ayant jamais fait cette tâche
-           eligibles = [
+            eligibles = [
                 e for e in prenoms
                 if e not in pris_ce_jour
                 and peut_faire_tache(e, tache, historique_taches)
@@ -270,13 +266,13 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
                     f"Jour {jour} – {tache} : {besoin - len(assignes)} place(s) manquante(s)"
                 )
 
-           for e in assignes:
-    pris_ce_jour.add(e)
+            for e in assignes:
+                pris_ce_jour.add(e)
 
-    taches_par_enfant[e].add(tache)
-    nb_taches_enfant[e] += 1
+                taches_par_enfant[e].add(tache)
+                nb_taches_enfant[e] += 1
 
-    historique_taches[e].append(tache)
+                historique_taches[e].append(tache)
 
             planning.append({
                 "Jour": f"Jour {jour}",
