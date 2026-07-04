@@ -86,6 +86,20 @@ for tache in taches:
     )
 
     st.divider()
+def peut_faire_tache(enfant, tache, historique_taches):
+   ###
+   ###  Empêche de faire la même tâche 3 fois de suite.
+   ###  
+
+    historique = historique_taches[enfant]
+
+    if len(historique) < 2:
+        return True
+
+    return not (
+        historique[-1] == tache
+        and historique[-2] == tache
+    )
 
 # =====================
 # 🎲 GÉNÉRATION DU PLANNING
@@ -108,6 +122,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     # Historique
     taches_par_enfant = {e: set() for e in prenoms}
     nb_taches_enfant = {e: 0 for e in prenoms}
+    historique_taches = {e: [] for e in prenoms}
 
     for jour in range(1, nb_jours + 1):
         pris_ce_jour = set()
@@ -124,7 +139,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             eligibles = [
                 e for e in prenoms
                 if e not in pris_ce_jour
-                and tache not in taches_par_enfant[e]
+                and peut_faire_tache(e, tache, historique_taches)
             ]
 
             # Équilibrage : ceux qui ont le moins travaillé
@@ -148,8 +163,11 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
             for e in assignes:
                 pris_ce_jour.add(e)
+            
                 taches_par_enfant[e].add(tache)
                 nb_taches_enfant[e] += 1
+
+                historique_taches[e].append(tache)
 
             planning.append({
                 "Jour": f"Jour {jour}",
@@ -191,7 +209,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         {
             "Jeune": e,
             "Nombre de tâches": nb_taches_enfant[e],
-            "Tâches effectuées": ", ".join(sorted(taches_par_enfant[e]))
+            "Tâches effectuées": ", ".join(historique_taches[e])      
         }
         for e in prenoms
     ])
