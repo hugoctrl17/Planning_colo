@@ -1,5 +1,7 @@
 streamlit
 pandas
+pillow
 numpy
-openai
-Pillow
+opencv-python-headless
+pytesseract
+openpyxl
