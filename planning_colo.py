@@ -59,7 +59,7 @@ if uploaded_image:
             "Utilisez encore la saisie manuelle."
         )
     
-            image_base64 = base64.b64encode(
+        image_base64 = base64.b64encode(
                 buffer.getvalue()
             ).decode()
 
