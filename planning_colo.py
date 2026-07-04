@@ -11,14 +11,33 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-st.title("📅 Générateur de planning des tâches")
+st.title("GÉNÉRATEUR DE PLANNING DES TACHES")
+import json
+
+uploaded_file = st.file_uploader(
+    "📂 Charger une configuration",
+    type=["json"]
+)
+
+config_chargee = {}
+
+if uploaded_file:
+    config_chargee = json.load(uploaded_file)
 
 # =====================
 # LISTE DES JEUNES
 # =====================
 st.header("Liste des jeunes")
+default_prenoms = ""
+
+if config_chargee:
+    default_prenoms = "\n".join(
+        config_chargee.get("prenoms", [])
+    )
+
 prenoms_input = st.text_area(
     "Un prénom par ligne",
+    value=default_prenoms,
     height=200,
     placeholder="Emma\nLéo\nNoah"
 )
@@ -33,7 +52,7 @@ nb_jours = st.number_input(
     "Nombre de jours",
     min_value=1,
     max_value=30,
-    value=8
+    value=config_chargee.get("nb_jours", 14)
 )
 
 liste_jours = list(range(1, nb_jours + 1))
@@ -105,6 +124,26 @@ def peut_faire_tache(enfant, tache, historique_taches):
 # 🎲 GÉNÉRATION DU PLANNING
 # =====================
 st.header("GÉNÉRER")
+config = {
+    "nb_jours": nb_jours,
+    "prenoms": prenoms,
+    "taches": taches,
+    "nb_personnes": nb_personnes,
+    "jours_par_tache": jours_par_tache
+}
+json_data = json.dumps(
+    config,
+    ensure_ascii=False,
+    indent=4
+)
+
+st.download_button(
+    "💾 Sauvegarder la configuration",
+    data=json_data,
+    file_name="configuration_colo.json",
+    mime="application/json",
+    use_container_width=True
+)
 
 if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
