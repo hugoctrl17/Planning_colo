@@ -61,13 +61,13 @@ config_chargee = {}
 
 if uploaded_file:
     config_chargee = json.load(uploaded_file)
-    if uploaded_image:
-
+if uploaded_image:
+    
     image = Image.open(uploaded_image)
 
     st.image(image, use_container_width=True)
 
-    if st.button("🔍 Extraire les jeunes"):
+if st.button("🔍 Extraire les jeunes"):
 
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
