@@ -1,81 +1,29 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
-import pytesseract
-import numpy as np
-import cv2
 import io
 
 # =====================
 # CONFIG
 # =====================
 st.set_page_config(page_title="Planning Colo", layout="centered")
-st.title("📱 Planning Colo - Version Stable")
+st.title("Planning Colo")
 
 # =====================
-# SESSION STATE SAFE
+# SESSION STATE
 # =====================
 if "prenoms" not in st.session_state:
     st.session_state.prenoms = []
 
 # =====================
-# OCR GRATUIT
+# JEUNES (SAISIE MANUELLE)
 # =====================
-def ocr_image(image):
-    img = np.array(image)
-
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    gray = cv2.equalizeHist(gray)
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
-
-    _, thresh = cv2.threshold(
-        gray, 0, 255,
-        cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )
-
-    config = "--psm 6"
-    text = pytesseract.image_to_string(
-        thresh,
-        lang="fra+eng",
-        config=config
-    )
-
-    return text
-
-
-def clean_text(text):
-    return "\n".join(
-        [t.strip() for t in text.split("\n") if len(t.strip()) > 1]
-    )
-
-# =====================
-# UPLOAD IMAGE + OCR
-# =====================
-st.header("📸 OCR (liste des jeunes)")
-
-img_file = st.file_uploader("Importer une image", type=["png", "jpg", "jpeg"])
-
-ocr_text = ""
-
-if img_file:
-    image = Image.open(img_file)
-    st.image(image, use_container_width=True)
-
-    if st.button("🔍 Extraire texte OCR"):
-        raw = ocr_image(image)
-        ocr_text = clean_text(raw)
-
-        st.session_state.prenoms = ocr_text.split("\n")
-
-# =====================
-# INPUT PRÉNOMS
-# =====================
-st.header("👦 Jeunes")
+st.header("Liste des jeunes")
 
 prenoms_input = st.text_area(
     "Un prénom par ligne",
     value="\n".join(st.session_state.prenoms),
-    height=180
+    height=180,
+    placeholder="Emma\nLéo\nNoah"
 )
 
 st.session_state.prenoms = [
@@ -84,7 +32,7 @@ st.session_state.prenoms = [
 
 prenoms = st.session_state.prenoms
 
-st.write(f"👥 {len(prenoms)} jeunes")
+st.write(f"{len(prenoms)} jeunes")
 
 # =====================
 # JOURS
@@ -95,7 +43,7 @@ jours = list(range(1, nb_jours + 1))
 # =====================
 # TÂCHES
 # =====================
-st.header("🧹 Tâches")
+st.header("Tâches")
 
 taches_input = st.text_area(
     "Une tâche par ligne",
@@ -105,10 +53,11 @@ taches_input = st.text_area(
 
 taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# sécurité slider
+# sécurité
 max_people = len(prenoms) if len(prenoms) > 0 else 1
 
 nb_personnes = {}
+
 for t in taches:
     nb_personnes[t] = st.slider(
         f"{t} 👥",
@@ -119,7 +68,7 @@ for t in taches:
     )
 
 # =====================
-# ALGO ÉQUITÉ SIMPLE + STABLE
+# ALGO ÉQUITÉ SIMPLE
 # =====================
 def choisir(prenoms, besoin, stats, last_task, tache):
     scores = []
@@ -139,7 +88,7 @@ def choisir(prenoms, besoin, stats, last_task, tache):
 # =====================
 # GÉNÉRATION
 # =====================
-if st.button("🚀 Générer planning", use_container_width=True):
+if st.button("Générer planning", use_container_width=True):
 
     if len(prenoms) == 0:
         st.error("Ajoute au moins un jeune")
@@ -151,7 +100,7 @@ if st.button("🚀 Générer planning", use_container_width=True):
 
     for j in jours:
 
-        st.subheader(f"📅 Jour {j}")
+        st.subheader(f"Jour {j}")
 
         used = set()
 
@@ -209,7 +158,7 @@ if st.button("🚀 Générer planning", use_container_width=True):
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        "⬇️ CSV",
+        "⬇️ Télécharger CSV",
         data=csv,
         file_name="planning.csv",
         mime="text/csv"
@@ -224,7 +173,7 @@ if st.button("🚀 Générer planning", use_container_width=True):
         df.to_excel(writer, index=False, sheet_name="planning")
 
     st.download_button(
-        "📥 Excel",
+        "📥 Télécharger Excel",
         data=buffer.getvalue(),
         file_name="planning.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
