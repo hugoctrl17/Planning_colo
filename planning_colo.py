@@ -246,10 +246,10 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
             # Enfants disponibles + n'ayant jamais fait cette tâche
            eligibles = [
-    e for e in prenoms
-    if e not in pris_ce_jour
-    and peut_faire_tache(e, tache, historique_taches)
-]
+                e for e in prenoms
+                if e not in pris_ce_jour
+                and peut_faire_tache(e, tache, historique_taches)
+            ]
 
             # Équilibrage : ceux qui ont le moins travaillé
             eligibles.sort(key=lambda e: nb_taches_enfant[e])
