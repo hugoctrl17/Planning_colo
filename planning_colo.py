@@ -37,7 +37,7 @@ prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 st.header("Groupes (optionnel)")
 
 groupes_input = st.text_area(
-    "Un groupe par ligne (ex: GR1: Emma, Léo)",
+    "Un groupe par ligne ",
     value="GR1: " + ", ".join(prenoms[:len(prenoms)//2]) if prenoms else ""
 )
 
@@ -61,12 +61,12 @@ jours = list(range(1, nb_jours + 1))
 st.header("Tâches")
 
 taches_input = st.text_area(
-    "Une tâche par ligne (option : GR1 ou GR2 ou ALL)",
+    "Une tâche par ligne",
     value=(
-        "NETTOYAGE MATIN (4) ALL\n"
-        "PREPA REPAS (6) GR1\n"
-        "VAISSELLE (4) GR2\n"
-        "COURSE (3) ALL"
+        "NETTOYAGE (4) \n"
+        "PREPA REPAS (6) \n"
+        "VAISSELLE (4) \n"
+        "COURSE (3) "
     )
 )
 
