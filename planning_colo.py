@@ -229,9 +229,9 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     alertes = []
 
     # Historique
-   taches_par_enfant = {e: set() for e in prenoms}
-nb_taches_enfant = {e: 0 for e in prenoms}
-historique_taches = {e: [] for e in prenoms}
+    taches_par_enfant = {e: set() for e in prenoms}
+    nb_taches_enfant = {e: 0 for e in prenoms}
+    historique_taches = {e: [] for e in prenoms}
 
     for jour in range(1, nb_jours + 1):
         pris_ce_jour = set()
