@@ -6,46 +6,44 @@ from PIL import Image
 # =====================
 # CONFIG APP
 # =====================
-st.set_page_config(
-    page_title="Planning des tâches",
-    layout="centered"
-)
+st.set_page_config(page_title="Planning", layout="centered")
 
 st.title("GÉNÉRATEUR DE PLANNING")
 
 # =====================
-# CONFIG IMPORT
+# IMPORT CONFIG
 # =====================
-uploaded_file = st.file_uploader("Charger config JSON", type=["json"])
+file = st.file_uploader("Charger config JSON", type=["json"])
 
 config = {}
-if uploaded_file:
-    config = json.load(uploaded_file)
+if file:
+    config = json.load(file)
 
 # =====================
-# JEUNES + GROUPES
+# JEUNES
 # =====================
 st.header("Jeunes")
 
 default = "\n".join(config.get("prenoms", []))
 
 prenoms_input = st.text_area("Un prénom par ligne", value=default, height=180)
-
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 
-# GROUPES (NOUVEAU)
+# =====================
+# GROUPES
+# =====================
 st.header("Groupes (optionnel)")
 
 groupes_input = st.text_area(
-    "Un groupe par ligne ",
-    value="GR1: " + ", ".join(prenoms[:len(prenoms)//2]) if prenoms else ""
+    "Format: GR1: A, B, C",
+    value=""
 )
 
 groupes = {}
 for line in groupes_input.split("\n"):
     if ":" in line:
-        nom, membres = line.split(":")
-        groupes[nom.strip()] = [m.strip() for m in membres.split(",") if m.strip()]
+        g, members = line.split(":")
+        groupes[g.strip()] = [m.strip() for m in members.split(",") if m.strip()]
 
 # =====================
 # PARAMÈTRES
@@ -61,17 +59,17 @@ jours = list(range(1, nb_jours + 1))
 st.header("Tâches")
 
 taches_input = st.text_area(
-    "Une tâche par ligne",
+    "Une tâche par ligne (ex: NOM (4) GR1 / ALL)",
     value=(
-        "NETTOYAGE (4) \n"
-        "PREPA REPAS (6) \n"
-        "VAISSELLE (4) \n"
-        "COURSE (3) "
+        "NETTOYAGE MATIN (4) ALL\n"
+        "PREPA REPAS (6) ALL\n"
+        "VAISSELLE (4) ALL\n"
+        "COURSE (3) ALL"
     )
 )
 
 # =====================
-# PARSE TACHES
+# PARSING TACHES
 # =====================
 taches = []
 for line in taches_input.split("\n"):
@@ -91,12 +89,12 @@ for line in taches_input.split("\n"):
     taches.append((name, groupe))
 
 # =====================
-# PARAMÈTRES TACHES
+# PARAMS TACHES
 # =====================
-st.header("Répartition")
-
 nb_personnes = {}
 jours_par_tache = {}
+
+st.header("Répartition tâches")
 
 for name, grp in taches:
     st.subheader(name)
@@ -117,9 +115,8 @@ for name, grp in taches:
     )
 
 # =====================
-# LOGIQUE
+# SCORE EQUITE
 # =====================
-
 def score(e):
     return (
         nb_taches[e],
@@ -142,7 +139,8 @@ if st.button("GÉNÉRER"):
     jour_compteur = {e: 0 for e in prenoms}
 
     for jour in jours:
-        deja_pris = set()
+        pris = set()
+        jour_vide = True
 
         for name, grp in taches:
 
@@ -152,19 +150,18 @@ if st.button("GÉNÉRER"):
             besoin = min(nb_personnes[name], len(prenoms))
 
             # =====================
-            # groupe filtering
+            # CANDIDATS
             # =====================
             if grp == "ALL":
                 candidats = prenoms
             else:
                 candidats = groupes.get(grp, prenoms)
 
-            # limite 2 tâches / jour
             candidats = [
                 e for e in candidats
                 if jour_compteur[e] < 2
                 and name not in taches_faites[e]
-                and e not in deja_pris
+                and e not in pris
             ]
 
             candidats.sort(key=score)
@@ -172,19 +169,29 @@ if st.button("GÉNÉRER"):
             assignes = candidats[:besoin]
 
             # =====================
-            # COMPLETION AUTOMATIQUE
+            # Fallback automatique
             # =====================
             if len(assignes) < besoin:
                 fallback = [
                     e for e in prenoms
-                    if e not in assignes
-                    and jour_compteur[e] < 2
+                    if jour_compteur[e] < 2
+                    and name not in taches_faites[e]
+                    and e not in assignes
                 ]
                 fallback.sort(key=score)
                 assignes += fallback[:besoin - len(assignes)]
 
+            # =====================
+            # SI TOUJOURS VIDE → FORCAGE
+            # =====================
+            if not assignes and prenoms:
+                assignes = [min(prenoms, key=lambda x: nb_taches[x])]
+
+            if assignes:
+                jour_vide = False
+
             for e in assignes:
-                deja_pris.add(e)
+                pris.add(e)
                 taches_faites[e].add(name)
                 nb_taches[e] += 1
                 jour_compteur[e] += 1
@@ -193,26 +200,43 @@ if st.button("GÉNÉRER"):
                 "Jour": f"Jour {jour}",
                 "Tâche": name,
                 "Groupe": grp,
-                "Jeunes": ", ".join(assignes)
+                "Jeunes": ", ".join(assignes) if assignes else "—"
             })
+
+        # =====================
+        # SI JOUR VIDE → REMPLISSAGE GLOBAL
+        # =====================
+        if jour_vide:
+            fallback_task = {
+                "Jour": f"Jour {jour}",
+                "Tâche": "🔧 AIDE GÉNÉRALE",
+                "Groupe": "ALL",
+                "Jeunes": ", ".join(sorted(prenoms, key=lambda x: nb_taches[x])[:2])
+            }
+            planning.append(fallback_task)
 
     # =====================
     # RESULTAT
     # =====================
     df = pd.DataFrame(planning)
 
-    st.success("Planning généré")
+    st.success("Planning généré sans jours vides")
 
     st.dataframe(df, use_container_width=True)
 
-    # vue par jour
-    st.header("📅 Vue jour")
+    # =====================
+    # VUE PAR JOUR
+    # =====================
+    st.header("📅 Vue par jour")
+
     for j in df["Jour"].unique():
         st.subheader(j)
         for _, r in df[df["Jour"] == j].iterrows():
-            st.write(f"{r['Tâche']} ({r['Groupe']}) → {r['Jeunes']}")
+            st.write(f"{r['Tâche']} → {r['Jeunes']}")
 
-    # recap
+    # =====================
+    # RECAP
+    # =====================
     st.header("📊 Récap")
 
     recap = pd.DataFrame([
@@ -226,7 +250,9 @@ if st.button("GÉNÉRER"):
 
     st.dataframe(recap, use_container_width=True)
 
-    # export
+    # =====================
+    # EXPORT
+    # =====================
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
