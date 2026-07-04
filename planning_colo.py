@@ -44,8 +44,9 @@ if uploaded_image:
         caption="Document importé",
         use_container_width=True
     )
-      if st.button("🔍 Extraire les jeunes"):
-                  buffer = io.BytesIO()
+
+    if st.button("Extraire les jeunes"):
+        buffer = io.BytesIO()
         image.save(buffer, format="PNG")
 
         image_base64 = base64.b64encode(
