@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import json
 from PIL import Image
 import pytesseract
 import numpy as np
@@ -8,34 +7,32 @@ import cv2
 import io
 
 # =====================
-# CONFIG STREAMLIT
+# CONFIG
 # =====================
 st.set_page_config(page_title="Planning Colo", layout="centered")
-
-st.title("📱 GÉNÉRATEUR DE PLANNING ÉQUITABLE")
+st.title("📱 Planning Colo - Version Stable")
 
 # =====================
-# OCR GRATUIT AMÉLIORÉ
+# SESSION STATE SAFE
+# =====================
+if "prenoms" not in st.session_state:
+    st.session_state.prenoms = []
+
+# =====================
+# OCR GRATUIT
 # =====================
 def ocr_image(image):
     img = np.array(image)
 
-    # grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-    # amélioration contraste
     gray = cv2.equalizeHist(gray)
-
-    # réduction bruit
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-    # binarisation
     _, thresh = cv2.threshold(
         gray, 0, 255,
         cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
 
-    # OCR
     config = "--psm 6"
     text = pytesseract.image_to_string(
         thresh,
@@ -52,9 +49,9 @@ def clean_text(text):
     )
 
 # =====================
-# IMAGE + OCR
+# UPLOAD IMAGE + OCR
 # =====================
-st.header("📸 OCR (liste jeunes)")
+st.header("📸 OCR (liste des jeunes)")
 
 img_file = st.file_uploader("Importer une image", type=["png", "jpg", "jpeg"])
 
@@ -64,30 +61,33 @@ if img_file:
     image = Image.open(img_file)
     st.image(image, use_container_width=True)
 
-    if st.button("🔍 Extraire texte"):
+    if st.button("🔍 Extraire texte OCR"):
         raw = ocr_image(image)
         ocr_text = clean_text(raw)
-        st.text_area("Texte détecté", ocr_text, height=200)
+
+        st.session_state.prenoms = ocr_text.split("\n")
 
 # =====================
-# JEUNES
+# INPUT PRÉNOMS
 # =====================
-st.header("👦 Liste des jeunes")
-
-default_text = ocr_text if ocr_text else ""
+st.header("👦 Jeunes")
 
 prenoms_input = st.text_area(
     "Un prénom par ligne",
-    value=default_text,
+    value="\n".join(st.session_state.prenoms),
     height=180
 )
 
-prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
+st.session_state.prenoms = [
+    p.strip() for p in prenoms_input.split("\n") if p.strip()
+]
+
+prenoms = st.session_state.prenoms
 
 st.write(f"👥 {len(prenoms)} jeunes")
 
 # =====================
-# PARAMÈTRES
+# JOURS
 # =====================
 nb_jours = st.slider("📅 Nombre de jours", 1, 30, 7)
 jours = list(range(1, nb_jours + 1))
@@ -105,30 +105,28 @@ taches_input = st.text_area(
 
 taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-nb_personnes = {
-    t: st.slider(f"{t} 👥", 1, max(1, len(prenoms)), 1)
-    for t in taches
-}
+# sécurité slider
+max_people = len(prenoms) if len(prenoms) > 0 else 1
+
+nb_personnes = {}
+for t in taches:
+    nb_personnes[t] = st.slider(
+        f"{t} 👥",
+        min_value=1,
+        max_value=max_people,
+        value=1,
+        key=f"slider_{t}"
+    )
 
 # =====================
-# ⚖️ ALGO D'ÉQUITÉ AVANCÉ
+# ALGO ÉQUITÉ SIMPLE + STABLE
 # =====================
-def choisir_equitable(prenoms, besoin, stats, last_task, tache):
-    """
-    Score :
-    - + poids si déjà beaucoup travaillé
-    - + pénalité si même tâche récente
-    """
-
+def choisir(prenoms, besoin, stats, last_task, tache):
     scores = []
 
     for p in prenoms:
-        score = 0
+        score = stats[p] * 10
 
-        # équilibre global
-        score += stats[p] * 10
-
-        # éviter répétition tâche
         if last_task[p] == tache:
             score += 50
 
@@ -141,10 +139,10 @@ def choisir_equitable(prenoms, besoin, stats, last_task, tache):
 # =====================
 # GÉNÉRATION
 # =====================
-if st.button("🚀 Générer le planning", use_container_width=True):
+if st.button("🚀 Générer planning", use_container_width=True):
 
-    if not prenoms:
-        st.error("Ajoute des jeunes")
+    if len(prenoms) == 0:
+        st.error("Ajoute au moins un jeune")
         st.stop()
 
     planning = []
@@ -159,17 +157,14 @@ if st.button("🚀 Générer le planning", use_container_width=True):
 
         for t in taches:
 
-            candidats = [
-                p for p in prenoms
-                if p not in used
-            ]
+            candidats = [p for p in prenoms if p not in used]
 
             if not candidats:
                 continue
 
             besoin = nb_personnes[t]
 
-            assignes = choisir_equitable(
+            assignes = choisir(
                 candidats,
                 besoin,
                 stats,
@@ -202,10 +197,7 @@ if st.button("🚀 Générer le planning", use_container_width=True):
     st.header("📊 Équité")
 
     recap = pd.DataFrame([
-        {
-            "Jeune": p,
-            "Tâches": stats[p]
-        }
+        {"Jeune": p, "Tâches": stats[p]}
         for p in prenoms
     ]).sort_values("Tâches")
 
@@ -217,7 +209,7 @@ if st.button("🚀 Générer le planning", use_container_width=True):
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        "⬇️ Télécharger CSV",
+        "⬇️ CSV",
         data=csv,
         file_name="planning.csv",
         mime="text/csv"
@@ -232,7 +224,7 @@ if st.button("🚀 Générer le planning", use_container_width=True):
         df.to_excel(writer, index=False, sheet_name="planning")
 
     st.download_button(
-        "📥 Télécharger Excel",
+        "📥 Excel",
         data=buffer.getvalue(),
         file_name="planning.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
