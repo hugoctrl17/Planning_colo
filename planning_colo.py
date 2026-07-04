@@ -1,6 +1,14 @@
 import streamlit as st
 import pandas as pd
 import json
+from openai import OpenAI
+from PIL import Image
+import io
+import base64
+
+client = OpenAI(
+    api_key=st.secrets["OPENAI_API_KEY"]
+)
 
 # =====================
 # CONFIG
@@ -34,6 +42,13 @@ def peut_faire_tache(enfant, tache, historique_taches):
 # =====================
 st.title("📅 GÉNÉRATEUR DE PLANNING DES TÂCHES")
 
+st.header("📸 Importer une liste d'émargement")
+
+uploaded_image = st.file_uploader(
+    "Choisir une photo",
+    type=["jpg", "jpeg", "png"]
+)
+
 # =====================
 # CHARGEMENT CONFIG
 # =====================
@@ -46,6 +61,53 @@ config_chargee = {}
 
 if uploaded_file:
     config_chargee = json.load(uploaded_file)
+    if uploaded_image:
+
+    image = Image.open(uploaded_image)
+
+    st.image(image, use_container_width=True)
+
+    if st.button("🔍 Extraire les jeunes"):
+
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+
+        image_base64 = base64.b64encode(
+            buffer.getvalue()
+        ).decode()
+
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": """
+Extrais uniquement les prénoms présents sur cette feuille.
+
+Règles :
+- un prénom par ligne
+- aucun commentaire
+- aucune numérotation
+- pas de texte supplémentaire
+"""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ]
+        )
+
+        st.session_state.prenoms_detectes = (
+            response.choices[0].message.content
+        )
 
 # =====================
 # LISTE DES JEUNES
@@ -58,12 +120,14 @@ if config_chargee:
     default_prenoms = "\n".join(
         config_chargee.get("prenoms", [])
     )
-
+    
+if "prenoms_detectes" not in st.session_state:
+    st.session_state.prenoms_detectes = ""
+    
 prenoms_input = st.text_area(
     "Un prénom par ligne",
-    value=default_prenoms,
-    height=200,
-    placeholder="Emma\nLéo\nNoah"
+    value=st.session_state.prenoms_detectes,
+    height=200
 )
 
 prenoms = [
