@@ -8,68 +8,51 @@ from PIL import Image
 # =====================
 st.set_page_config(
     page_title="Planning des tâches",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="centered"
 )
 
-st.title("GÉNÉRATEUR DE PLANNING DES TÂCHES")
+st.title("GÉNÉRATEUR DE PLANNING")
 
 # =====================
-# IMPORT CONFIG
+# CONFIG IMPORT
 # =====================
-uploaded_file = st.file_uploader(
-    "Charger une configuration",
-    type=["json"]
-)
+uploaded_file = st.file_uploader("Charger config JSON", type=["json"])
 
-config_chargee = {}
+config = {}
 if uploaded_file:
-    config_chargee = json.load(uploaded_file)
+    config = json.load(uploaded_file)
 
 # =====================
-# IMAGE (option OCR future)
+# JEUNES + GROUPES
 # =====================
-st.header("Importer une photo")
+st.header("Jeunes")
 
-uploaded_image = st.file_uploader(
-    "Importer une image",
-    type=["jpg", "jpeg", "png"]
-)
+default = "\n".join(config.get("prenoms", []))
 
-if uploaded_image:
-    image = Image.open(uploaded_image)
-    st.image(image, caption="Document importé", use_container_width=True)
-
-    st.info("OCR non activé (saisie manuelle actuellement).")
-
-# =====================
-# JEUNES
-# =====================
-st.header("Liste des jeunes")
-
-default_prenoms = "\n".join(config_chargee.get("prenoms", []))
-
-prenoms_input = st.text_area(
-    "Un prénom par ligne",
-    value=default_prenoms,
-    height=200
-)
+prenoms_input = st.text_area("Un prénom par ligne", value=default, height=180)
 
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
-nb_enfants = len(prenoms)
+
+# GROUPES (NOUVEAU)
+st.header("Groupes (optionnel)")
+
+groupes_input = st.text_area(
+    "Un groupe par ligne (ex: GR1: Emma, Léo)",
+    value="GR1: " + ", ".join(prenoms[:len(prenoms)//2]) if prenoms else ""
+)
+
+groupes = {}
+for line in groupes_input.split("\n"):
+    if ":" in line:
+        nom, membres = line.split(":")
+        groupes[nom.strip()] = [m.strip() for m in membres.split(",") if m.strip()]
 
 # =====================
 # PARAMÈTRES
 # =====================
 st.header("Paramètres")
 
-nb_jours = st.number_input(
-    "Nombre de jours",
-    min_value=1,
-    max_value=30,
-    value=config_chargee.get("nb_jours", 14)
-)
-
+nb_jours = st.number_input("Nombre de jours", 1, 30, 7)
 jours = list(range(1, nb_jours + 1))
 
 # =====================
@@ -78,137 +61,143 @@ jours = list(range(1, nb_jours + 1))
 st.header("Tâches")
 
 taches_input = st.text_area(
-    "Une tâche par ligne",
+    "Une tâche par ligne (option : GR1 ou GR2 ou ALL)",
     value=(
-        "NETTOYAGE MATIN (4)\n"
-        "PREPA PIQUE NIQUE (8)\n"
-        "PREPA MIDI (4)\n"
-        "VAISSELLE MIDI (4)\n"
-        "NETTOYAGE SOIR (2)\n"
-        "VAISSELLE SOIR (4)\n"
-        "COURSE (6)"
+        "NETTOYAGE MATIN (4) ALL\n"
+        "PREPA REPAS (6) GR1\n"
+        "VAISSELLE (4) GR2\n"
+        "COURSE (3) ALL"
     )
 )
 
-taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
+# =====================
+# PARSE TACHES
+# =====================
+taches = []
+for line in taches_input.split("\n"):
+    line = line.strip()
+    if not line:
+        continue
+
+    parts = line.split()
+
+    groupe = "ALL"
+    if parts[-1].startswith("GR"):
+        groupe = parts[-1]
+        name = " ".join(parts[:-1])
+    else:
+        name = line
+
+    taches.append((name, groupe))
 
 # =====================
-# PARAMÈTRES PAR TÂCHE
+# PARAMÈTRES TACHES
 # =====================
-st.header("⚙️ Paramètres tâches")
+st.header("Répartition")
 
 nb_personnes = {}
 jours_par_tache = {}
 
-for t in taches:
-    st.subheader(t)
+for name, grp in taches:
+    st.subheader(name)
 
-    nb_personnes[t] = st.number_input(
-        f"👥 {t} - nombre de personnes",
-        min_value=1,
-        max_value=max(1, nb_enfants),
-        value=1,
-        key=f"nb_{t}"
+    nb_personnes[name] = st.number_input(
+        f"👥 {name}",
+        1,
+        max(1, len(prenoms)),
+        1,
+        key=f"nb_{name}"
     )
 
-    jours_par_tache[t] = st.multiselect(
-        f"📅 Jours pour {t}",
-        options=jours,
+    jours_par_tache[name] = st.multiselect(
+        f"📅 jours {name}",
+        jours,
         default=jours,
-        key=f"jours_{t}"
+        key=f"jours_{name}"
     )
 
-    st.divider()
-
 # =====================
-# LOGIQUE ÉQUITÉ
+# LOGIQUE
 # =====================
 
-def peut_faire_tache(enfant, tache, historique):
-    """Empêche 3 répétitions consécutives"""
-    h = historique[enfant]
-    if len(h) < 2:
-        return True
-    return not (h[-1] == tache and h[-2] == tache)
-
-
-def score_equite(enfant):
-    """Score global d'équité"""
+def score(e):
     return (
-        nb_taches_enfant[enfant],          # charge totale
-        len(taches_par_enfant[enfant])     # diversité
+        nb_taches[e],
+        len(taches_faites[e])
     )
 
 # =====================
-# GÉNÉRATION
+# GENERATION
 # =====================
-if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
+if st.button("GÉNÉRER"):
 
     if not prenoms:
-        st.error("Ajoute au moins un jeune.")
-        st.stop()
-
-    if not taches:
-        st.error("Ajoute au moins une tâche.")
+        st.error("Ajoute des jeunes")
         st.stop()
 
     planning = []
-    alertes = []
 
-    taches_par_enfant = {e: set() for e in prenoms}
-    nb_taches_enfant = {e: 0 for e in prenoms}
-    historique_taches = {e: [] for e in prenoms}
+    taches_faites = {e: set() for e in prenoms}
+    nb_taches = {e: 0 for e in prenoms}
+    jour_compteur = {e: 0 for e in prenoms}
 
     for jour in jours:
-        pris = set()
+        deja_pris = set()
 
-        for tache in taches:
+        for name, grp in taches:
 
-            if jour not in jours_par_tache.get(tache, []):
+            if jour not in jours_par_tache[name]:
                 continue
 
-            besoin = min(nb_personnes[tache], nb_enfants)
+            besoin = min(nb_personnes[name], len(prenoms))
 
             # =====================
-            # ÉLIGIBLES (équité + interdiction répétition)
+            # groupe filtering
             # =====================
-            eligibles = [
-                e for e in prenoms
-                if e not in pris
-                and tache not in taches_par_enfant[e]  # ❌ jamais 2 fois même tâche
-                and peut_faire_tache(e, tache, historique_taches)
+            if grp == "ALL":
+                candidats = prenoms
+            else:
+                candidats = groupes.get(grp, prenoms)
+
+            # limite 2 tâches / jour
+            candidats = [
+                e for e in candidats
+                if jour_compteur[e] < 2
+                and name not in taches_faites[e]
+                and e not in deja_pris
             ]
 
-            eligibles.sort(key=score_equite)
+            candidats.sort(key=score)
 
-            assignes = eligibles[:besoin]
+            assignes = candidats[:besoin]
 
-            # fallback si manque de monde
+            # =====================
+            # COMPLETION AUTOMATIQUE
+            # =====================
             if len(assignes) < besoin:
                 fallback = [
                     e for e in prenoms
-                    if e not in pris and e not in assignes
+                    if e not in assignes
+                    and jour_compteur[e] < 2
                 ]
-                fallback.sort(key=score_equite)
+                fallback.sort(key=score)
                 assignes += fallback[:besoin - len(assignes)]
 
-            if len(assignes) < besoin:
-                alertes.append(f"Jour {jour} - {tache} : manque de personnes")
-
             for e in assignes:
-                pris.add(e)
-                taches_par_enfant[e].add(tache)
-                nb_taches_enfant[e] += 1
-                historique_taches[e].append(tache)
+                deja_pris.add(e)
+                taches_faites[e].add(name)
+                nb_taches[e] += 1
+                jour_compteur[e] += 1
 
             planning.append({
                 "Jour": f"Jour {jour}",
-                "Tâche": tache,
+                "Tâche": name,
+                "Groupe": grp,
                 "Jeunes": ", ".join(assignes)
             })
 
     # =====================
-    # RESULTATS
+    # RESULTAT
     # =====================
     df = pd.DataFrame(planning)
 
@@ -216,18 +205,12 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
     st.dataframe(df, use_container_width=True)
 
-    # Vue par jour
-    st.header("📅 Vue par jour")
+    # vue par jour
+    st.header("📅 Vue jour")
     for j in df["Jour"].unique():
         st.subheader(j)
-        for _, row in df[df["Jour"] == j].iterrows():
-            st.write(f"• {row['Tâche']} → {row['Jeunes']}")
-
-    # alertes
-    if alertes:
-        st.warning("⚠️ Alertes")
-        for a in alertes:
-            st.write("•", a)
+        for _, r in df[df["Jour"] == j].iterrows():
+            st.write(f"{r['Tâche']} ({r['Groupe']}) → {r['Jeunes']}")
 
     # recap
     st.header("📊 Récap")
@@ -235,19 +218,19 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     recap = pd.DataFrame([
         {
             "Jeune": e,
-            "Tâches": nb_taches_enfant[e],
-            "Liste": ", ".join(historique_taches[e])
+            "Tâches": nb_taches[e],
+            "Jours occupés": jour_compteur[e]
         }
         for e in prenoms
     ])
 
     st.dataframe(recap, use_container_width=True)
 
-    # export CSV
+    # export
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        "⬇️ Télécharger CSV",
+        "⬇️ Export CSV",
         data=csv,
         file_name="planning.csv",
         mime="text/csv"
