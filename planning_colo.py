@@ -29,7 +29,7 @@ taches_input = st.text_area("Une tâche par ligne (ex: Vaisselle (2))",
                            value="Nettoyage Matin (2)\nVaisselle Midi (4)\nCuisine Soir (3)\nCourse (2)")
 taches_brutes = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# Dictionnaire de configuration
+# Configuration des tâches
 config_taches = {}
 for i, tache in enumerate(taches_brutes):
     nom = tache.split('(')[0].strip()
@@ -53,8 +53,8 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     nb_taches_par_jeune = {e: 0 for e in prenoms}
 
     for jour in liste_jours:
-        # Liste des jeunes disponibles au début de chaque journée
-        disponibles_ce_jour = list(prenoms)
+        # Suivi du nombre de tâches faites ce jour par chaque jeune
+        taches_ce_jour = {e: 0 for e in prenoms}
         
         for nom_tache, cfg in config_taches.items():
             if jour not in cfg["jours"]:
@@ -63,32 +63,23 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             
             besoin = cfg["nb"]
             
-            # Algorithme de tri pour le roulement
             def score(jeune):
-                # Pénalité très forte si le jeune a fait la même tâche la veille
-                penalite = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
-                return (penalite, nb_taches_par_jeune[jeune], random.random())
+                # 1. Pénalité forte si tâche faite la veille
+                penalite_veille = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
+                # 2. Pénalité modérée si a déjà une tâche aujourd'hui
+                penalite_deja_pris = 50 if taches_ce_jour[jeune] > 0 else 0
+                # 3. Équité globale
+                total = nb_taches_par_jeune[jeune]
+                return (penalite_veille, penalite_deja_pris, total, random.random())
 
-            # On trie uniquement parmi ceux encore disponibles aujourd'hui
-            disponibles_ce_jour.sort(key=score)
+            # Tous les jeunes sont candidats, triés par score
+            candidats = sorted(prenoms, key=score)
+            assignes = candidats[:besoin]
             
-            # Sélection des assignés
-            assignes = disponibles_ce_jour[:besoin]
-            
-            # Mise à jour des disponibilités : on retire les assignés de la liste
-            for a in assignes:
-                if a != "⚠️ MANQUE":
-                    disponibles_ce_jour.remove(a)
-            
-            # Remplissage si pénurie
-            while len(assignes) < besoin:
-                assignes.append("⚠️ MANQUE")
-            
-            # Enregistrement
             for e in assignes:
-                if e != "⚠️ MANQUE":
-                    nb_taches_par_jeune[e] += 1
-                    historique_taches[e].append(nom_tache)
+                taches_ce_jour[e] += 1
+                nb_taches_par_jeune[e] += 1
+                historique_taches[e].append(nom_tache)
                 planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": e})
 
     # =====================
@@ -96,6 +87,8 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     # =====================
     df = pd.DataFrame(planning_data)
     
+    # Pivot pour tableau à double entrée
+    # L'aggfunc combine les prénoms par saut de ligne HTML
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
@@ -104,7 +97,13 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         fill_value="-"
     )
     
+    # Tri des jours
     pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
     st.success("Planning généré avec succès !")
+    # Rendu HTML pour afficher les noms les uns sous les autres
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
+    
+    # Export CSV
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
