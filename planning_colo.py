@@ -9,7 +9,7 @@ import random
 st.set_page_config(page_title="Planning Colo", layout="wide")
 st.title("📅 Générateur de Planning Colo")
 
-# Sidebar
+# Sidebar pour config
 with st.sidebar:
     st.header("Configuration")
     uploaded_file = st.file_uploader("Charger une config (JSON)", type=["json"])
@@ -21,7 +21,7 @@ prenoms_input = st.text_area("Un prénom par ligne", value="\n".join(config_char
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 
 st.header("2. Paramètres colo")
-nb_jours = st.number_input("Nombre de jours", 1, 30, value=config_chargee.get("nb_jours", 5))
+nb_jours = st.number_input("Nombre de jours", 1, 30, value=config_chargee.get("nb_jours", 14))
 liste_jours = list(range(1, nb_jours + 1))
 
 st.header("3. Liste des tâches")
@@ -57,14 +57,12 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         
         for nom_tache, cfg in config_taches.items():
             if jour not in cfg["jours"]:
-                planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": "-"})
                 continue
             
             besoin = cfg["nb"]
             
-            # Tri intelligent
             def score(jeune):
-                # Pénalité si fait la veille
+                # Pénalité si fait la même tâche la veille
                 penalite = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
                 return (penalite, nb_taches_par_jeune[jeune], random.random())
 
@@ -77,31 +75,33 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
                 pris_ce_jour.add(e)
                 nb_taches_par_jeune[e] += 1
                 historique_taches[e].append(nom_tache)
-                planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": e})
+                planning_data.append({"Jour": int(jour), "Tâche": nom_tache, "Jeune": e})
 
     # =====================
-    # AFFICHAGE FINAL
+    # AFFICHAGE FINAL (Double Entrée)
     # =====================
     df = pd.DataFrame(planning_data)
     
-    # Création du pivot trié
+    # Création du pivot : Lignes = Tâches, Colonnes = Jours
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
         values="Jeune", 
-        aggfunc=lambda x: "<br>".join([str(i) for i in x if i != "-"]),
+        aggfunc=lambda x: "<br>".join([str(i) for i in x]),
         fill_value="-"
     )
     
-    # S'assurer que les colonnes de jours sont bien triées
-    pivot_df = pivot_df.sort_index(axis=1)
+    # Tri des colonnes jours (s'assurer de l'ordre 1, 2, 3...)
+    pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
-    st.success("Planning généré !")
+    st.success("Planning généré avec succès !")
+    
+    # Rendu HTML pour respecter les retours à la ligne des prénoms
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
-    st.subheader("📊 Équilibre")
+    st.subheader("📊 Équilibre des tâches")
     st.bar_chart(pd.Series(nb_taches_par_jeune))
 
-    # Export
+    # Export CSV
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
