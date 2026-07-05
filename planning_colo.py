@@ -1,13 +1,10 @@
 import streamlit as st
 import pandas as pd
-import random
 
-st.set_page_config(page_title="Planning colo", layout="centered")
-
-st.title("📅 Générateur de planning équitable")
+st.title("📅 Générateur de Planning Colo")
 
 # --- Inputs ---
-prenoms_input = st.text_area("Prénoms des jeunes (un par ligne)", "Emma\nLéo\nNoah\nJade\nLucas")
+prenoms_input = st.text_area("Prénoms (un par ligne)", "Emma\nLéo\nNoah\nJade\nLucas")
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
 nb_jours = st.number_input("Nombre de jours", 1, 30, 5)
 
@@ -16,53 +13,57 @@ taches_config = []
 for ligne in taches_input.split("\n"):
     if "(" in ligne:
         nom = ligne.split("(")[0].strip()
-        nb = int(ligne.split("(")[1].replace(")", "").strip())
-        taches_config.append({"nom": nom, "nb": nb})
+        nb_str = ligne.split("(")[1].replace(")", "").strip()
+        if nb_str.isdigit():
+            taches_config.append({"nom": nom, "nb": int(nb_str)})
 
-# --- Logique de génération ---
 if st.button("Générer le planning"):
-    # Historique : {nom: [liste des tâches faites par jour]}
-    # Pour gérer le "pas 2 fois la même en 2-3 jours", on regarde l'historique récent
-    historique = {p: [] for p in prenoms} 
+    if not prenoms or not taches_config:
+        st.error("Erreur : Remplis bien la liste des jeunes et des tâches.")
+        st.stop()
+
+    # Initialisation
     planning = []
-    
-    # On définit l'intervalle de repos (ex: 2 jours)
-    repos_intervalle = 2 
+    # On garde une trace de ce que chaque jeune a fait : {jeune: [taches_faites_au_total]}
+    historique_taches = {p: [] for p in prenoms}
 
     for jour in range(1, nb_jours + 1):
-        pris_ce_jour = []
+        # Liste des jeunes disponibles ce jour-là (on réinitialise chaque jour)
+        disponibles = list(prenoms)
+        random.shuffle(disponibles) # Mélange pour ne pas toujours prendre les mêmes en premier
         
         for t in taches_config:
-            # Qui est dispo ?
-            # 1. Pas déjà pris aujourd'hui
-            # 2. N'a pas fait cette tâche précise dans les 'repos_intervalle' derniers jours
+            besoin = t['nb']
+            assignes = []
+            
+            # On cherche des candidats
+            # Critère 1 : N'a pas fait la même tâche hier ou avant-hier
             candidats = []
-            for p in prenoms:
-                if p not in pris_ce_jour:
-                    # Vérifier si le jeune a fait cette tâche récemment
-                    recent = historique[p][-repos_intervalle:]
-                    if t['nom'] not in recent:
-                        candidats.append(p)
+            for p in disponibles:
+                # Vérifie les 2 derniers jours dans l'historique
+                dernieres_taches = historique_taches[p][-2:] 
+                if t['nom'] not in dernieres_taches:
+                    candidats.append(p)
             
-            # Si pas assez de candidats, on relâche la contrainte de "tâche récente"
-            if len(candidats) < t['nb']:
-                candidats = [p for p in prenoms if p not in pris_ce_jour]
+            # Si on n'a pas assez de candidats "frais", on prend dans les disponibles restants
+            if len(candidats) < besoin:
+                candidats = disponibles
             
-            # Priorité à celui qui a fait le moins de tâches au total
-            candidats.sort(key=lambda p: len(historique[p]))
+            # On sélectionne les premiers de la liste
+            assignes = candidats[:besoin]
             
-            assignes = candidats[:t['nb']]
-            pris_ce_jour.extend(assignes)
-            
+            # On met à jour les listes
             for p in assignes:
-                historique[p].append(t['nom'])
+                disponibles.remove(p)
+                historique_taches[p].append(t['nom'])
                 planning.append({"Jour": jour, "Tâche": t['nom'], "Jeune": p})
 
-    # Affichage
+    # --- AFFICHAGE ---
     df = pd.DataFrame(planning)
-    st.dataframe(df)
-    
-    # Graphique d'équité
-    st.subheader("📊 Nombre de tâches par jeune")
-    recap = df['Jeune'].value_counts()
+    st.success("Planning généré avec succès !")
+    st.dataframe(df, use_container_width=True)
+
+    # Récapitulatif
+    st.subheader("📊 Récapitulatif par jeune")
+    recap = df.groupby('Jeune')['Tâche'].count()
     st.bar_chart(recap)
