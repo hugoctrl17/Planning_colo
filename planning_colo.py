@@ -9,7 +9,7 @@ import random
 st.set_page_config(page_title="Planning Colo", layout="wide")
 st.title("📅 Générateur de Planning Colo")
 
-# Sidebar pour config
+# Sidebar
 with st.sidebar:
     st.header("Configuration")
     uploaded_file = st.file_uploader("Charger une config (JSON)", type=["json"])
@@ -33,13 +33,17 @@ taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
 # Paramètres par tâche
 nb_personnes = {}
 jours_par_tache = {}
-for tache in taches:
+
+# MODIFICATION ICI : On utilise i pour garantir une clé unique
+for i, tache in enumerate(taches):
     nom_tache = tache.split('(')[0].strip()
     col1, col2 = st.columns(2)
     with col1:
-        nb_personnes[nom_tache] = st.number_input(f"👥 {nom_tache} : nb personnes", 1, max(1, nb_enfants), 1, key=f"nb_{nom_tache}")
+        # Clé unique avec l'index i
+        nb_personnes[nom_tache] = st.number_input(f"👥 {nom_tache} : nb personnes", 1, max(1, nb_enfants), 1, key=f"nb_{i}")
     with col2:
-        jours_par_tache[nom_tache] = st.multiselect(f"📅 Jours pour {nom_tache}", liste_jours, default=liste_jours, key=f"j_{nom_tache}")
+        # Clé unique avec l'index i
+        jours_par_tache[nom_tache] = st.multiselect(f"📅 Jours pour {nom_tache}", liste_jours, default=liste_jours, key=f"j_{i}")
 
 # =====================
 # GÉNÉRATION
@@ -68,25 +72,18 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
             candidats = [e for e in prenoms if e not in pris_ce_jour]
             candidats.sort(key=score_candidat)
-            
             assignes = candidats[:besoin]
             
             for e in assignes:
                 pris_ce_jour.add(e)
                 nb_taches_par_jeune[e] += 1
                 historique_taches[e].append(tache)
-                # Utilisation de <br> pour séparer les prénoms par ligne
                 planning.append({"Jour": f"Jour {jour}", "Tâche": tache, "Jeune": e})
 
-    # =====================
-    # RÉSULTATS (Tableau transposé)
-    # =====================
+    # RÉSULTATS
     df = pd.DataFrame(planning)
-    
     st.success("Planning généré avec succès !")
     
-    # Inversion : Tâches en lignes, Jours en colonnes
-    # On utilise <br> pour que streamlit puisse potentiellement afficher le retour à la ligne
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
@@ -94,13 +91,11 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         aggfunc=lambda x: "<br>".join(x)
     ).fillna("-")
     
-    st.subheader("📅 Planning détaillé (Tâches en lignes)")
-    # Conversion en HTML pour afficher les sauts de ligne
+    st.subheader("📅 Planning détaillé")
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
     st.subheader("📊 Équilibre (Nb de tâches par jeune)")
     st.bar_chart(pd.Series(nb_taches_par_jeune))
 
-    # Export
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
