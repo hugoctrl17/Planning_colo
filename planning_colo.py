@@ -9,7 +9,7 @@ import random
 st.set_page_config(page_title="Planning Colo", layout="wide")
 st.title("📅 Générateur de Planning Colo")
 
-# Sidebar pour config
+# Sidebar
 with st.sidebar:
     st.header("Configuration")
     uploaded_file = st.file_uploader("Charger une config (JSON)", type=["json"])
@@ -29,7 +29,7 @@ taches_input = st.text_area("Une tâche par ligne (ex: Vaisselle (2))",
                            value="Nettoyage Matin (2)\nVaisselle Midi (4)\nCuisine Soir (3)\nCourse (2)")
 taches_brutes = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# Dictionnaire pour stocker les réglages
+# Dictionnaire de configuration
 config_taches = {}
 for i, tache in enumerate(taches_brutes):
     nom = tache.split('(')[0].strip()
@@ -57,10 +57,12 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         
         for nom_tache, cfg in config_taches.items():
             if jour not in cfg["jours"]:
+                planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": "-"})
                 continue
             
             besoin = cfg["nb"]
             
+            # Algorithme de tri
             def score(jeune):
                 # Pénalité si fait la même tâche la veille
                 penalite = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
@@ -71,32 +73,36 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             
             assignes = candidats[:besoin]
             
+            # Si pénurie, on remplit avec des avertissements
+            while len(assignes) < besoin:
+                assignes.append("⚠️ MANQUE")
+            
             for e in assignes:
-                pris_ce_jour.add(e)
-                nb_taches_par_jeune[e] += 1
-                historique_taches[e].append(nom_tache)
-                planning_data.append({"Jour": int(jour), "Tâche": nom_tache, "Jeune": e})
+                if e != "⚠️ MANQUE":
+                    pris_ce_jour.add(e)
+                    nb_taches_par_jeune[e] += 1
+                    historique_taches[e].append(nom_tache)
+                planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": e})
 
     # =====================
-    # AFFICHAGE FINAL (Double Entrée)
+    # AFFICHAGE FINAL
     # =====================
     df = pd.DataFrame(planning_data)
     
-    # Création du pivot : Lignes = Tâches, Colonnes = Jours
+    # Pivot pour tableau à double entrée
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
         values="Jeune", 
-        aggfunc=lambda x: "<br>".join([str(i) for i in x]),
+        aggfunc=lambda x: "<br>".join([str(i) for i in x if i != "-"]),
         fill_value="-"
     )
     
-    # Tri des colonnes jours (s'assurer de l'ordre 1, 2, 3...)
+    # Tri des colonnes jours
     pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
     st.success("Planning généré avec succès !")
-    
-    # Rendu HTML pour respecter les retours à la ligne des prénoms
+    # Affichage HTML pour les retours à la ligne
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
     st.subheader("📊 Équilibre des tâches")
