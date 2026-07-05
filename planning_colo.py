@@ -53,7 +53,8 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     nb_taches_par_jeune = {e: 0 for e in prenoms}
 
     for jour in liste_jours:
-        pris_ce_jour = set()
+        # Liste des jeunes disponibles au début de chaque journée
+        disponibles_ce_jour = list(prenoms)
         
         for nom_tache, cfg in config_taches.items():
             if jour not in cfg["jours"]:
@@ -62,24 +63,30 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             
             besoin = cfg["nb"]
             
-            # Algorithme de tri
+            # Algorithme de tri pour le roulement
             def score(jeune):
-                # Pénalité si fait la même tâche la veille
+                # Pénalité très forte si le jeune a fait la même tâche la veille
                 penalite = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
                 return (penalite, nb_taches_par_jeune[jeune], random.random())
 
-            candidats = [e for e in prenoms if e not in pris_ce_jour]
-            candidats.sort(key=score)
+            # On trie uniquement parmi ceux encore disponibles aujourd'hui
+            disponibles_ce_jour.sort(key=score)
             
-            assignes = candidats[:besoin]
+            # Sélection des assignés
+            assignes = disponibles_ce_jour[:besoin]
             
-            # Si pénurie, on remplit avec des avertissements
+            # Mise à jour des disponibilités : on retire les assignés de la liste
+            for a in assignes:
+                if a != "⚠️ MANQUE":
+                    disponibles_ce_jour.remove(a)
+            
+            # Remplissage si pénurie
             while len(assignes) < besoin:
                 assignes.append("⚠️ MANQUE")
             
+            # Enregistrement
             for e in assignes:
                 if e != "⚠️ MANQUE":
-                    pris_ce_jour.add(e)
                     nb_taches_par_jeune[e] += 1
                     historique_taches[e].append(nom_tache)
                 planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": e})
@@ -89,7 +96,6 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     # =====================
     df = pd.DataFrame(planning_data)
     
-    # Pivot pour tableau à double entrée
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
@@ -98,16 +104,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         fill_value="-"
     )
     
-    # Tri des colonnes jours
     pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
     st.success("Planning généré avec succès !")
-    # Affichage HTML pour les retours à la ligne
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
-    
-    st.subheader("📊 Équilibre des tâches")
-    st.bar_chart(pd.Series(nb_taches_par_jeune))
-
-    # Export CSV
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
