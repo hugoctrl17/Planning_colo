@@ -9,7 +9,7 @@ import random
 st.set_page_config(page_title="Planning Colo", layout="wide")
 st.title("📅 Générateur de Planning Colo")
 
-# Sidebar
+# Sidebar pour config
 with st.sidebar:
     st.header("Configuration")
     uploaded_file = st.file_uploader("Charger une config (JSON)", type=["json"])
@@ -29,7 +29,7 @@ taches_input = st.text_area("Une tâche par ligne (ex: Vaisselle (2))",
                            value="Nettoyage Matin (2)\nVaisselle Midi (4)\nCuisine Soir (3)\nCourse (2)")
 taches_brutes = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# Configuration des tâches
+# Dictionnaire de configuration
 config_taches = {}
 for i, tache in enumerate(taches_brutes):
     nom = tache.split('(')[0].strip()
@@ -53,7 +53,6 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     nb_taches_par_jeune = {e: 0 for e in prenoms}
 
     for jour in liste_jours:
-        # Suivi du nombre de tâches faites ce jour par chaque jeune
         taches_ce_jour = {e: 0 for e in prenoms}
         
         for nom_tache, cfg in config_taches.items():
@@ -64,9 +63,9 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             besoin = cfg["nb"]
             
             def score(jeune):
-                # 1. Pénalité forte si tâche faite la veille
+                # 1. Pénalité si fait la même tâche la veille
                 penalite_veille = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
-                # 2. Pénalité modérée si a déjà une tâche aujourd'hui
+                # 2. Pénalité si a déjà une tâche aujourd'hui
                 penalite_deja_pris = 50 if taches_ce_jour[jeune] > 0 else 0
                 # 3. Équité globale
                 total = nb_taches_par_jeune[jeune]
@@ -87,8 +86,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
     # =====================
     df = pd.DataFrame(planning_data)
     
-    # Pivot pour tableau à double entrée
-    # L'aggfunc combine les prénoms par saut de ligne HTML
+    # 1. Tableau Planning
     pivot_df = df.pivot_table(
         index="Tâche", 
         columns="Jour", 
@@ -96,14 +94,22 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
         aggfunc=lambda x: "<br>".join([str(i) for i in x if i != "-"]),
         fill_value="-"
     )
-    
-    # Tri des jours
     pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
     st.success("Planning généré avec succès !")
-    # Rendu HTML pour afficher les noms les uns sous les autres
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
-    # Export CSV
+    # 2. Compteur statistique
+    st.subheader("📊 Récapitulatif : Nombre de fois par tâche par jeune")
+    recap_df = df[df["Jeune"] != "-"].pivot_table(
+        index="Jeune", 
+        columns="Tâche", 
+        aggfunc="size", 
+        fill_value=0
+    )
+    recap_df["Total"] = recap_df.sum(axis=1)
+    st.dataframe(recap_df, use_container_width=True)
+
+    # Export
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
