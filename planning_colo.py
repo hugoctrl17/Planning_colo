@@ -1,69 +1,99 @@
 import streamlit as st
 import pandas as pd
+import json
 
+# =====================
+# CONFIGURATION
+# =====================
+st.set_page_config(page_title="Planning Colo", layout="centered")
 st.title("📅 Générateur de Planning Colo")
 
-# --- Inputs ---
-prenoms_input = st.text_area("Prénoms (un par ligne)", "Emma\nLéo\nNoah\nJade\nLucas")
+# =====================
+# SIDEBAR / CONFIGURATION
+# =====================
+uploaded_file = st.sidebar.file_uploader("Charger une config (JSON)", type=["json"])
+config_chargee = json.load(uploaded_file) if uploaded_file else {}
+
+st.header("1. Liste des jeunes")
+prenoms_input = st.text_area("Un prénom par ligne", value="\n".join(config_chargee.get("prenoms", ["Emma", "Léo", "Noah"])))
 prenoms = [p.strip() for p in prenoms_input.split("\n") if p.strip()]
-nb_jours = st.number_input("Nombre de jours", 1, 30, 5)
+nb_enfants = len(prenoms)
 
-taches_input = st.text_area("Tâches (format: Nom (nb_personnes))", "Vaisselle (2)\nNettoyage (2)\nCuisine (3)")
-taches_config = []
-for ligne in taches_input.split("\n"):
-    if "(" in ligne:
-        nom = ligne.split("(")[0].strip()
-        nb_str = ligne.split("(")[1].replace(")", "").strip()
-        if nb_str.isdigit():
-            taches_config.append({"nom": nom, "nb": int(nb_str)})
+st.header("2. Paramètres colo")
+nb_jours = st.number_input("Nombre de jours", 1, 30, value=config_chargee.get("nb_jours", 5))
+liste_jours = list(range(1, nb_jours + 1))
 
-if st.button("Générer le planning"):
-    if not prenoms or not taches_config:
-        st.error("Erreur : Remplis bien la liste des jeunes et des tâches.")
+st.header("3. Liste des tâches")
+taches_input = st.text_area("Une tâche par ligne (ex: Vaisselle (2))", 
+                           value="Nettoyage Matin (2)\nVaisselle Midi (4)\nCuisine Soir (3)")
+taches = [t.strip() for t in taches_input.split("\n") if t.strip()]
+
+# =====================
+# PARAMÈTRES PAR TÂCHE
+# =====================
+nb_personnes = {}
+jours_par_tache = {}
+
+for tache in taches:
+    nom_tache = tache.split('(')[0].strip()
+    col1, col2 = st.columns(2)
+    with col1:
+        nb_personnes[nom_tache] = st.number_input(f"👥 {nom_tache} : nb personnes", 1, max(1, nb_enfants), 1)
+    with col2:
+        jours_par_tache[nom_tache] = st.multiselect(f"📅 Jours pour {nom_tache}", liste_jours, default=liste_jours)
+
+# =====================
+# LOGIQUE DE GÉNÉRATION
+# =====================
+def peut_faire_tache(enfant, tache, historique):
+    """Vérifie si le jeune peut faire la tâche (pas 2 fois la même sur les 2 derniers jours)."""
+    h = historique[enfant]
+    if len(h) < 2: return True
+    return not (h[-1] == tache and h[-2] == tache)
+
+if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
+    if not prenoms or not taches:
+        st.error("Ajoutez des jeunes et des tâches !")
         st.stop()
 
-    # Initialisation
     planning = []
-    # On garde une trace de ce que chaque jeune a fait : {jeune: [taches_faites_au_total]}
-    historique_taches = {p: [] for p in prenoms}
+    historique_taches = {e: [] for e in prenoms}
+    nb_taches_par_jeune = {e: 0 for e in prenoms}
 
-    for jour in range(1, nb_jours + 1):
-        # Liste des jeunes disponibles ce jour-là (on réinitialise chaque jour)
-        disponibles = list(prenoms)
-        random.shuffle(disponibles) # Mélange pour ne pas toujours prendre les mêmes en premier
+    for jour in liste_jours:
+        pris_ce_jour = set()
         
-        for t in taches_config:
-            besoin = t['nb']
-            assignes = []
+        for tache in jours_par_tache:
+            if jour not in jours_par_tache[tache]: continue
             
-            # On cherche des candidats
-            # Critère 1 : N'a pas fait la même tâche hier ou avant-hier
-            candidats = []
-            for p in disponibles:
-                # Vérifie les 2 derniers jours dans l'historique
-                dernieres_taches = historique_taches[p][-2:] 
-                if t['nom'] not in dernieres_taches:
-                    candidats.append(p)
+            besoin = nb_personnes[tache]
             
-            # Si on n'a pas assez de candidats "frais", on prend dans les disponibles restants
+            # Filtre les candidats disponibles et respectant la contrainte de roulement
+            candidats = [e for e in prenoms if e not in pris_ce_jour and peut_faire_tache(e, tache, historique_taches)]
+            
+            # Si pénurie, on ignore la contrainte de roulement
             if len(candidats) < besoin:
-                candidats = disponibles
+                candidats = [e for e in prenoms if e not in pris_ce_jour]
             
-            # On sélectionne les premiers de la liste
+            # Priorité à ceux qui ont le moins travaillé (équité)
+            candidats.sort(key=lambda e: nb_taches_par_jeune[e])
             assignes = candidats[:besoin]
             
-            # On met à jour les listes
-            for p in assignes:
-                disponibles.remove(p)
-                historique_taches[p].append(t['nom'])
-                planning.append({"Jour": jour, "Tâche": t['nom'], "Jeune": p})
+            for e in assignes:
+                pris_ce_jour.add(e)
+                nb_taches_par_jeune[e] += 1
+                historique_taches[e].append(tache)
+                planning.append({"Jour": f"Jour {jour}", "Tâche": tache, "Jeune": e})
 
-    # --- AFFICHAGE ---
+    # =====================
+    # AFFICHAGE
+    # =====================
     df = pd.DataFrame(planning)
-    st.success("Planning généré avec succès !")
+    st.success("Planning généré !")
     st.dataframe(df, use_container_width=True)
+    
+    st.subheader("📊 Équilibre des tâches")
+    st.bar_chart(pd.Series(nb_taches_par_jeune))
 
-    # Récapitulatif
-    st.subheader("📊 Récapitulatif par jeune")
-    recap = df.groupby('Jeune')['Tâche'].count()
-    st.bar_chart(recap)
+    # Export CSV
+    st.download_button("⬇️ Télécharger CSV", df.to_csv(index=False), "planning.csv", "text/csv")
