@@ -7,9 +7,9 @@ import random
 # CONFIGURATION
 # =====================
 st.set_page_config(page_title="Planning Colo", layout="wide")
-st.title("📅 Générateur de Planning Colo")
+st.title("📅 Générateur de Planning Colo (Optimisé)")
 
-# Sidebar pour config
+# Sidebar pour configuration
 with st.sidebar:
     st.header("Configuration")
     uploaded_file = st.file_uploader("Charger une config (JSON)", type=["json"])
@@ -29,7 +29,6 @@ taches_input = st.text_area("Une tâche par ligne (ex: Vaisselle (2))",
                            value="Nettoyage Matin (2)\nVaisselle Midi (4)\nCuisine Soir (3)\nCourse (2)")
 taches_brutes = [t.strip() for t in taches_input.split("\n") if t.strip()]
 
-# Dictionnaire de configuration
 config_taches = {}
 for i, tache in enumerate(taches_brutes):
     nom = tache.split('(')[0].strip()
@@ -50,6 +49,7 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
 
     planning_data = []
     historique_taches = {e: [] for e in prenoms}
+    memo_taches_faites = {e: set() for e in prenoms}
     nb_taches_par_jeune = {e: 0 for e in prenoms}
 
     for jour in liste_jours:
@@ -63,15 +63,17 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             besoin = cfg["nb"]
             
             def score(jeune):
-                # 1. Pénalité si fait la même tâche la veille
-                penalite_veille = 100 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
-                # 2. Pénalité si a déjà une tâche aujourd'hui
-                penalite_deja_pris = 50 if taches_ce_jour[jeune] > 0 else 0
-                # 3. Équité globale
+                # 1. PRIORITÉ : N'a jamais fait cette tâche ?
+                a_deja_fait = nom_tache in memo_taches_faites[jeune]
+                priorite_couverture = 0 if not a_deja_fait else 1
+                # 2. Pénalité : fait la veille
+                penalite_veille = 1 if (historique_taches[jeune] and historique_taches[jeune][-1] == nom_tache) else 0
+                # 3. Pénalité : déjà une tâche aujourd'hui
+                penalite_deja_pris = 1 if taches_ce_jour[jeune] > 0 else 0
+                # 4. Équité globale
                 total = nb_taches_par_jeune[jeune]
-                return (penalite_veille, penalite_deja_pris, total, random.random())
+                return (priorite_couverture, penalite_veille, penalite_deja_pris, total, random.random())
 
-            # Tous les jeunes sont candidats, triés par score
             candidats = sorted(prenoms, key=score)
             assignes = candidats[:besoin]
             
@@ -79,37 +81,27 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
                 taches_ce_jour[e] += 1
                 nb_taches_par_jeune[e] += 1
                 historique_taches[e].append(nom_tache)
+                memo_taches_faites[e].add(nom_tache)
                 planning_data.append({"Jour": jour, "Tâche": nom_tache, "Jeune": e})
 
     # =====================
-    # AFFICHAGE FINAL
+    # AFFICHAGE
     # =====================
     df = pd.DataFrame(planning_data)
     
-    # 1. Tableau Planning
-    pivot_df = df.pivot_table(
-        index="Tâche", 
-        columns="Jour", 
-        values="Jeune", 
-        aggfunc=lambda x: "<br>".join([str(i) for i in x if i != "-"]),
-        fill_value="-"
-    )
+    # Planning Double Entrée
+    pivot_df = df.pivot_table(index="Tâche", columns="Jour", values="Jeune", 
+                              aggfunc=lambda x: "<br>".join([str(i) for i in x if i != "-"]), fill_value="-")
     pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
     
-    st.success("Planning généré avec succès !")
+    st.success("Planning généré !")
     st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
-    # 2. Compteur statistique
-    st.subheader("📊 Récapitulatif : Nombre de fois par tâche par jeune")
-    recap_df = df[df["Jeune"] != "-"].pivot_table(
-        index="Jeune", 
-        columns="Tâche", 
-        aggfunc="size", 
-        fill_value=0
-    )
+    # Statistiques
+    st.subheader("📊 Récapitulatif : Tâches par jeune")
+    recap_df = df[df["Jeune"] != "-"].pivot_table(index="Jeune", columns="Tâche", aggfunc="size", fill_value=0)
     recap_df["Total"] = recap_df.sum(axis=1)
     st.dataframe(recap_df, use_container_width=True)
 
-    # Export
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Télécharger CSV", csv, "planning.csv", "text/csv")
