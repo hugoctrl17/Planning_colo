@@ -61,43 +61,42 @@ if st.button("GÉNÉRER LE PLANNING", use_container_width=True):
             
             besoin = nb_personnes[tache]
             
-            # Fonction de score pour forcer le roulement et l'équité
             def score_candidat(jeune):
-                # Pénalité si répétition immédiate (la veille)
                 a_fait_hier = 100 if (len(historique_taches[jeune]) > 0 and historique_taches[jeune][-1] == tache) else 0
                 nb_total = nb_taches_par_jeune[jeune]
                 return (a_fait_hier, nb_total, random.random())
 
-            # Candidats disponibles
             candidats = [e for e in prenoms if e not in pris_ce_jour]
             candidats.sort(key=score_candidat)
             
             assignes = candidats[:besoin]
             
-            # Attribution
             for e in assignes:
                 pris_ce_jour.add(e)
                 nb_taches_par_jeune[e] += 1
                 historique_taches[e].append(tache)
+                # Utilisation de <br> pour séparer les prénoms par ligne
                 planning.append({"Jour": f"Jour {jour}", "Tâche": tache, "Jeune": e})
 
     # =====================
-    # RÉSULTATS (Tableau double entrée)
+    # RÉSULTATS (Tableau transposé)
     # =====================
     df = pd.DataFrame(planning)
     
     st.success("Planning généré avec succès !")
     
-    # Création du tableau pivot
+    # Inversion : Tâches en lignes, Jours en colonnes
+    # On utilise <br> pour que streamlit puisse potentiellement afficher le retour à la ligne
     pivot_df = df.pivot_table(
-        index="Jour", 
-        columns="Tâche", 
+        index="Tâche", 
+        columns="Jour", 
         values="Jeune", 
-        aggfunc=lambda x: ", ".join(x)
+        aggfunc=lambda x: "<br>".join(x)
     ).fillna("-")
     
-    st.subheader("📅 Planning détaillé (Double entrée)")
-    st.dataframe(pivot_df, use_container_width=True)
+    st.subheader("📅 Planning détaillé (Tâches en lignes)")
+    # Conversion en HTML pour afficher les sauts de ligne
+    st.write(pivot_df.to_html(escape=False), unsafe_allow_html=True)
     
     st.subheader("📊 Équilibre (Nb de tâches par jeune)")
     st.bar_chart(pd.Series(nb_taches_par_jeune))
